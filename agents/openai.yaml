@@ -1,0 +1,6 @@
+interface:
+  display_name: "GHPython Component Workflow"
+  short_description: "Iterate GH Python via loaders, stable ports and ghuser delivery"
+  default_prompt: "Use $ghpython-component-workflow to develop a GH Python component through a workspace .py loader, preserve ports and data trees, read Debug when needed, and prepare verified ghuser delivery."
+policy:
+  allow_implicit_invocation: true
