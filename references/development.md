@@ -31,7 +31,7 @@ Do not create or maintain a separate `<component>.md` manual merely to explain a
 
 Rhino 8 Python 3 and legacy IronPython components differ in Python syntax, available packages and .NET interoperation. Confirm the actual component/runtime when migrating; do not combine snippets from both environments without checking conversion behavior.
 
-Describe each input by name, Item/List/Tree access, type hint, optional/default behavior, and units where relevant. In Grasshopper, Item access can invoke the component repeatedly through data matching; List access supplies a branch, not necessarily the entire input tree. Tree access preserves the whole tree. Changing access can change execution count and output structure, not just the Python type.
+Describe every input and output by name, Item/List/Tree access, semantic type/type hint, and units where relevant; inputs also define optional/default behavior. Match types on both sides using [type-hints.md](type-hints.md). In Grasshopper, Item access can invoke the component repeatedly through data matching; List access supplies a branch, not necessarily the entire input tree. Tree access preserves the whole tree. Changing access can change execution count and output structure, not just the Python type.
 
 For this loader workflow, configure ports automatically using the supplied starter and the exact [port rules](loader-and-ports.md). Prefer the project's existing conventions when modifying an established component. Do not replace automatic configuration with repeated manual port setup merely because a component is small.
 

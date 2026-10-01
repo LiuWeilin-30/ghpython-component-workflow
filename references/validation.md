@@ -2,6 +2,8 @@
 
 Choose checks proportional to the change; this is not a mandatory full pipeline for every edit.
 
+For initial setup, use the reproducible [curve-division acceptance recipe](quickstart.md). Bundled `check_loader.py`, `check_starter.py` and `check_examples.py` run with the standard library. They cover source reloads, typed input/output configuration, superseded callbacks, generated standalone code and example contracts. These are offline substitutes, not GH acceptance; do not repeat the full infrastructure suite for unrelated algorithm-only edits.
+
 | Check | What it establishes | What it does not establish |
 | --- | --- | --- |
 | Syntax/import check | Code parses and selected dependencies load in that interpreter | Rhino/GH geometry and ports work |
@@ -26,6 +28,8 @@ Use the user's requested artifact: source script, loader, GH definition, User Ob
 For a User Object meant to be portable, instantiate it in a fresh definition and confirm that it does not rely on the author's absolute file paths. If dependencies are intentional, identify and test their installation/loading instead of calling the object standalone. Verify ports, representative geometry, repeated solves and save/reopen for the final artifact when GH is available.
 
 If live GH access is unavailable, provide exact manual reproduction steps, input values and expected observations. Report completed and pending verification separately. Do not claim a package was tested merely because its source passed syntax checks.
+
+On 2026-10-02, the user reported successful acceptance of the corrected curve-division example in their current Rhino/GH environment: loader refresh and normal results, save/reopen, and the proposed connected-port configuration update check. This is user-reported evidence, not an agent-observed MCP test or a controlled delayed-callback stress test. The exact running Rhino build was not independently captured. The example exercises curve, integer, point, number and text; the other supplied type mappings have not been individually live-tested. Repeat relevant acceptance on another runtime. Assembly inspection alone does not establish live selection, conversion, wiring or persistence.
 
 ## Assess whether the skill helps
 

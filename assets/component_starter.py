@@ -6,9 +6,9 @@ Inputs:
   Data: Tree Access, object hint, optional, default None. Accepts a GH data tree;
         an empty or missing input produces an empty result without invented geometry.
 Outputs:
-  Result: Tree Access; original GH paths, empty branches and item order are preserved.
+  Result: Tree Access, object hint; original GH paths, empty branches and item order are preserved.
           Items are passed through by reference, not deep-copied or baked.
-  Debug: List Access; one JSON string for the current solve, including a run token,
+  Debug: List Access, text hint; one JSON string for the current solve, including a run token,
          source marker, status, bounded path sample, counts or exception details.
 
 Units/tolerance: none are required for this structural copy; item units are unchanged.
@@ -27,10 +27,10 @@ Verification: substitute port/loader tests cover logic; actual GH marshalling an
 save/reopen behavior must be verified in the recipient's runtime.
 """
 INPUT_SPECS = [('Data', 'Data', 'Complete data tree; missing input produces an empty tree', 'tree', 'object', True)]
-OUTPUT_SPECS = [('Result', 'Result', 'Data tree preserving paths and item order', 'tree'),
-                ('Debug', 'Debug', 'Current solve status, counts or errors; may be removed for packaging', 'list')]
+OUTPUT_SPECS = [('Result', 'Result', 'Data tree preserving paths and item order', 'tree', 'object'),
+                ('Debug', 'Debug', 'Current solve status, counts or errors; may be removed for packaging', 'list', 'text')]
 PORT_ALIASES = {}
-COMPONENT_MARKER = 'TreePassThrough:r1'
+COMPONENT_MARKER = 'TreePassThrough:r3'
 COMPONENT_MESSAGE = 'Tree pass-through\nExternal source iteration'
 
 def _port_name(param):
@@ -45,8 +45,8 @@ def _validate_port_specs():
     for specs, is_input in ((INPUT_SPECS, True), (OUTPUT_SPECS, False)):
         seen = set()
         for spec in specs:
-            if len(spec) < (6 if is_input else 4):
-                raise ValueError("Incomplete port specification.")
+            if len(spec) not in ((6,) if is_input else (4, 5)):
+                raise ValueError("Input specs need 6 fields; output specs need 5 (legacy 4 accepted).")
             name = spec[0]
             if not isinstance(name, str) or re.fullmatch(r"[A-Z][A-Za-z0-9]*", name) is None:
                 raise ValueError("Ports require short PascalCase English names: " + str(name))
@@ -55,9 +55,10 @@ def _validate_port_specs():
             seen.add(name)
             if spec[3] not in ("item", "list", "tree"):
                 raise ValueError("Invalid port Access: " + name)
-            if is_input and (spec[4] not in ("object", "number", "bool", "point", "interval")
-                             or not isinstance(spec[5], bool)):
-                raise ValueError("Invalid port Type Hint/Optional: " + name)
+            if is_input and not isinstance(spec[5], bool):
+                raise ValueError("Optional must be bool: " + name)
+            # Resolve hints during preflight, on BOTH sides, before any mutation.
+            _resolve_hint(spec[4] if len(spec) >= 5 else 'object')
 
 def _ports_match(component):
     import Grasshopper as gh
@@ -111,34 +112,71 @@ def _migrate_port_side(ports, templates, unregister, register):
         param.Description, param.Access = template.Description, template.Access
         param.Optional = template.Optional
 
+def _resolve_hint(hint):
+    """Resolve aliases or an explicit CLR type; Select still verifies availability."""
+    import importlib
+    import clr
+    aliases = {
+        'object': 'System.Object', 'number': 'System.Double', 'float': 'System.Double',
+        'integer': 'System.Int32', 'int': 'System.Int32', 'bool': 'System.Boolean',
+        'text': 'System.String', 'string': 'System.String', 'str': 'System.String',
+        'datetime': 'System.DateTime', 'guid': 'System.Guid',
+        'color': 'System.Drawing.Color', 'complex': 'Grasshopper.Kernel.Types.Complex',
+        'point': 'Rhino.Geometry.Point3d', 'vector': 'Rhino.Geometry.Vector3d',
+        'plane': 'Rhino.Geometry.Plane', 'interval': 'Rhino.Geometry.Interval',
+        'uvinterval': 'Grasshopper.Kernel.Types.UVInterval', 'transform': 'Rhino.Geometry.Transform',
+        'line': 'Rhino.Geometry.Line', 'circle': 'Rhino.Geometry.Circle',
+        'arc': 'Rhino.Geometry.Arc', 'rectangle': 'Rhino.Geometry.Rectangle3d',
+        'box': 'Rhino.Geometry.Box', 'polyline': 'Rhino.Geometry.Polyline',
+        'curve': 'Rhino.Geometry.Curve', 'surface': 'Rhino.Geometry.Surface',
+        'extrusion': 'Rhino.Geometry.Extrusion', 'brep': 'Rhino.Geometry.Brep',
+        'subd': 'Rhino.Geometry.SubD', 'mesh': 'Rhino.Geometry.Mesh',
+        'pointcloud': 'Rhino.Geometry.PointCloud', 'geometry': 'Rhino.Geometry.GeometryBase',
+        'hatch': 'Rhino.Geometry.Hatch', 'textdot': 'Rhino.Geometry.TextDot',
+        'textentity': 'Rhino.Geometry.TextEntity', 'leader': 'Rhino.Geometry.Leader',
+        'dimension': 'Rhino.Geometry.Dimension', 'annotation': 'Rhino.Geometry.AnnotationBase',
+    }
+    if isinstance(hint, str):
+        path = aliases.get(hint.lower(), hint)
+        if '.' not in path:
+            raise ValueError('Unknown type hint: ' + hint + '; inspect the installed hint catalog.')
+        module, name = path.rsplit('.', 1)
+        try:
+            hint = getattr(importlib.import_module(module), name)
+        except (ImportError, AttributeError) as exc:
+            raise ValueError('Type hint is unavailable: ' + path) from exc
+    if hasattr(hint, 'FullName'):
+        return hint
+    return clr.GetClrType(hint)
+
 def _apply_port_spec(param, spec, is_input):
     import Grasshopper as gh
+    import System
     param.VariableName = param.Name = spec[0]
     param.NickName, param.Description = spec[1], spec[2]
     param.Access = getattr(gh.Kernel.GH_ParamAccess, spec[3])
     param.Optional = spec[5] if is_input else False
-    if is_input:
-        import System
-        import clr
-        if spec[4] in ("point", "interval"):
-            import Rhino.Geometry as geometry
-            hint = geometry.Point3d if spec[4] == "point" else geometry.Interval
-        else:
-            hint = {"object": System.Object, "number": System.Double, "bool": System.Boolean}[spec[4]]
-        if param.TypeHints.Select(clr.GetClrType(hint)) is None:
-            raise ValueError("Cannot set Type Hint: " + spec[0])
+    hint = spec[4] if len(spec) >= 5 else 'object'
+    # Python.NET may otherwise bind Select(String) for a System.RuntimeType.
+    selected = param.TypeHints.Select.Overloads[System.Type](_resolve_hint(hint))
+    if selected is None:
+        side = 'input' if is_input else 'output'
+        raise ValueError('Unsupported ' + side + ' Type Hint: ' + spec[0] + ' = ' + str(hint))
+
+def _spec_stamp():
+    return (tuple(tuple(s) for s in INPUT_SPECS), tuple(tuple(s) for s in OUTPUT_SPECS),
+            tuple(sorted(globals().get('PORT_ALIASES', {}).items())))
 
 def _port_stamp(component):
-    return (tuple(tuple(s) for s in INPUT_SPECS), tuple(tuple(s) for s in OUTPUT_SPECS),
-            tuple(str(getattr(p, "InstanceGuid", id(p)))
-                  for p in list(component.Params.Input) + list(component.Params.Output)))
+    return (_spec_stamp(), tuple(str(getattr(p, 'InstanceGuid', id(p)))
+            for p in list(component.Params.Input) + list(component.Params.Output)))
 
 def _ensure_ports(component):
     import Grasshopper as gh
     from RhinoCodePluginGH.Parameters import ScriptVariableParam
     _validate_port_specs()
     # Per-component, in-session state. No serialized/runtime external dependency.
-    states = globals().setdefault("_PATH_PORT_STATES", {})
+    states = globals().setdefault("_GH_PORT_STATES", {})
     key = str(getattr(component, "InstanceGuid", id(component)))
     stamp = _port_stamp(component)
     state = states.get(key, {})
@@ -162,10 +200,16 @@ def _ensure_ports(component):
     document = component.OnPingDocument()
     if document is None:
         return False
-    states[key] = {"pending": stamp}
+    snapshot = _spec_stamp()
+    input_specs, output_specs = snapshot[:2]
+    # Ownership token prevents an old callback from mutating or clearing a new job.
+    token = object()
+    states[key] = {"pending": stamp, "token": token}
     def configure(doc):
         try:
-            if component.OnPingDocument() != doc:
+            if (states.get(key, {}).get('token') is not token
+                    or _spec_stamp() != snapshot
+                    or component.OnPingDocument() != doc):
                 return
             # Recheck wires/persistent data added while the callback was pending.
             _plan_port_side(list(component.Params.Input), inputs)
@@ -175,8 +219,8 @@ def _ensure_ports(component):
                                component.Params.UnregisterInputParameter, component.Params.RegisterInputParam)
             _migrate_port_side(component.Params.Output, outputs,
                                component.Params.UnregisterOutputParameter, component.Params.RegisterOutputParam)
-            for specs, ports, is_input in ((INPUT_SPECS, component.Params.Input, True),
-                                           (OUTPUT_SPECS, component.Params.Output, False)):
+            for specs, ports, is_input in ((input_specs, component.Params.Input, True),
+                                           (output_specs, component.Params.Output, False)):
                 for spec, param in zip(specs, ports):
                     _apply_port_spec(param, spec, is_input)
             component.Params.OnParametersChanged()
@@ -186,7 +230,7 @@ def _ensure_ports(component):
         except Exception as exc:
             component.AddRuntimeMessage(gh.Kernel.GH_RuntimeMessageLevel.Error, str(exc))
         finally:
-            if "pending" in states.get(key, {}):
+            if states.get(key, {}).get('token') is token:
                 states.pop(key, None)
     try:
         document.ScheduleSolution(1, configure)

@@ -1,61 +1,38 @@
 ---
 name: ghpython-component-workflow
-description: Develop and maintain Rhino 8 Grasshopper Python 3 components through external .py loaders, wire-preserving automatic ports, DataTree-safe processing, agent-readable Debug outputs, and portable .ghuser packaging. Use for GHPython component development and workflow delivery.
+description: Develop Rhino 8 Grasshopper Python 3 components with external-source loaders, automatically typed input/output ports, preserved connections and data trees, and optional portable ghuser delivery.
 ---
 
 # Grasshopper Python Component Workflow
 
-Make the established development process reusable: official API lookup → editable workspace source → loader-driven GH iteration → stable ports and trees → readable diagnostics → tested, portable User Objects. Default new components to Rhino 8 Python 3; identify legacy GHPython/IronPython before modifying existing code.
+Keep implementation in a stable workspace `.py`; paste its small loader into GH once. AI edits the file, and a GH recompute reads it again. Automatically configure **every input and output**: name, description, Item/List/Tree access and an appropriate type hint; inputs also declare Optional. This skill is self-contained; the author's paths, project rules and MCP setup are not prerequisites.
 
-This skill is the complete reusable workflow; no author-specific development guide, path, tool or protocol is required. Project instructions supplement it with local constraints. If no project guide exists, proceed using these references/assets and record the actual project decisions in `project-control.md`.
+## Read only what the task needs
 
-## Scope and environment
+| Task | Read / run |
+| --- | --- |
+| First component or unfamiliar setup | [quickstart.md](references/quickstart.md); run `scripts/create_component.py` |
+| New ports, type changes or loader setup | [loader-and-ports.md](references/loader-and-ports.md); consult [type-hints.md](references/type-hints.md) for relevant types |
+| Algorithm-only edit | Component header, specs and target function; reuse known infrastructure |
+| Trees or diagnostic failures | [data-and-debug.md](references/data-and-debug.md), [troubleshooting.md](references/troubleshooting.md) as needed |
+| Runtime/API, geometry or substantial edits | Relevant section of [development.md](references/development.md) |
+| Shared helper changes, backups or release maintenance | Relevant section of [maintenance.md](references/maintenance.md) |
+| Validation or requested packaging | [validation.md](references/validation.md); [packaging-mcp.md](references/packaging-mcp.md) only for packaging |
 
-This skill targets Rhino 8 Grasshopper Python 3 component work. It does not install Rhino, configure a bridge, or authorize publishing. Assess legacy GHPython/IronPython separately. RhinoMCP or another live bridge is optional for source preparation, but live canvas inspection and packaging require actual available capabilities.
-
-## Start with the user's project
-
-Follow applicable AGENTS.md and project instructions. Use an existing authoritative guide rather than creating a competing one. For a new project, keep `project-control.md` at the root and all development code, loaders, tests and temporary packaging scripts under `tests/`, grouped by workflow. The control file records environment, workflow boundaries, source paths, accepted interfaces, test state and agreed release locations; it is not a transcript or a second copy of this skill. See [the new-project control template](assets/project-control-template.md). Do not relocate an established project merely to match this layout.
-
-For an existing component, inspect its source, port definitions, loader if present, and relevant tests. Establish runtime, input access/type hints, units/tolerance, and the expected result from available artifacts. Ask only for missing information that materially changes implementation; do not require the user to complete an intake questionnaire.
-
-Before editing, apply [maintenance.md](references/maintenance.md) for task-scoped backups/checks, environment reuse, shared-code synchronization and revision/cache identity. Read the relevant parts rather than loading all history or every component.
+Do not load all references, tests, READMEs or templates each turn. Use the generator to copy tested infrastructure instead of reproducing it in chat. Inspect that infrastructure when changing it or diagnosing it. Reuse recorded runtime, source path and hint catalog; do not re-enumerate types or browse unchanged APIs for every component. Prefer bounded Debug summaries and focused tests. Read additional material when a failure or uncertainty requires it; token savings must not hide unverified behavior.
 
 ## Essential workflow
 
-1. Verify unfamiliar or changed API calls using official RhinoCommon, RhinoScriptSyntax and Grasshopper SDK documentation, preferably the installed version's XML. Read [development.md](references/development.md) for geometry/runtime boundaries.
-2. For iterative work, place a small loader in the Python 3 component and keep the full implementation, `INPUT_SPECS` and `OUTPUT_SPECS` in one stable workspace `.py`. The agent edits that file; a GH solve reads it again. Read [loader-and-ports.md](references/loader-and-ports.md) before setup or port changes and reuse the supplied [single-file starter](assets/component_starter.py). Do not make users repeatedly paste business code into GH.
-3. Automatically configure ports on first session use and meaningful specification/parameter changes through a scheduled callback. Preserve compatible parameter objects and their wires. Revision/message changes are not reconstruction triggers. Exact timing, hints, migration rules and the two-solve initialization are in the loader reference.
-4. Preserve input tree paths, meaningful grouping, item ordering and required empty branches. Do not append zero indices at each processing stage or simplify meaningful zeros. Read [data-and-debug.md](references/data-and-debug.md) for path construction and data contracts.
-5. Add a `Debug` output early for repeatedly failing or predictably fragile components. Trigger a fresh solve and have the agent read the actual output through an available Rhino/GH bridge or a deterministic export. The data/debug reference defines the content and freshness checks.
-6. Verify the component and its workflow with actual GH inputs when available. After test completion, ask whether to package and where to store that workflow's deliverables, unless already specified. Use **RhinoMCP** or another available bridge to embed the standalone source and create `.ghuser` objects through official GH APIs. Read [packaging-mcp.md](references/packaging-mcp.md) and [validation.md](references/validation.md). A workflow of separate User Objects also needs a connecting example `.gh`; `.ghuser` is not automatically a compiled `.gha` plugin or a complete workflow bundle.
-
-## Conditional guidance
-
-- Errors, wrong geometry, stale output, or damaged connections: read [troubleshooting.md](references/troubleshooting.md).
-- Test design, performance comparisons, or release evidence: read [validation.md](references/validation.md).
-
-Read only the relevant references. Simple explanations do not require inspecting an entire project or running geometry tests.
-
-## Working principles
-
-- Apply these workflow defaults unless the user or existing project directs otherwise. Existing release policies, protocols and backup requirements remain authoritative.
-- Preserve working behavior outside the requested change. When the algorithm itself is wrong, fix it with a focused reproducer; preservation is not a ban on necessary algorithm changes.
-- Keep each component within its agreed responsibility. Reuse infrastructure without embedding another component's complete business function unless requested. For large edits, use context-aware patches or AST-based replacement and inspect the resulting diff and syntax. See [development.md](references/development.md).
-- Keep the complete component usage description at the top of its implementation `.py`; update it with interface/behavior changes. Do not create a separate per-component Markdown manual. Users should be able to open the source header to understand the component.
-- Verify unfamiliar or changed API signatures against the installed RhinoCommon XML/documentation or official references. Do not invent a method from a similar API name. Record version-dependent assumptions.
-- Distinguish geometry from display samples and manufacturing instructions. A visually acceptable approximation is not automatically acceptable for downstream fabrication.
-- Do the checks available in the current environment. If Rhino/GH is unavailable, still deliver the useful implementation and a concrete in-GH test; state what remains unverified without claiming live execution.
+1. Follow applicable project instructions. Inspect an existing component's header/specs and preserve agreed behavior. For a new workspace, use `project-control.md` and `tests/<workflow>/`; the [control template](assets/project-control-template.md) records only environment, paths, interface decisions and verification state. Keep existing project layouts.
+2. Confirm Rhino 8 Python 3 versus legacy IronPython, a usable helper interpreter, and whether Rhino can read the **same current source file**. Remote/container paths require explicit Rhino-side mapping or synchronization. A running Rhino does not prove an MCP connection. MCP is optional; provide manual steps when unavailable or declined.
+3. Generate a standalone source plus loader with `scripts/create_component.py <source.py> --example curve-divide` (or `tree`). Keep the generated helpers; change the usage header, specs and algorithm. The example body alone is not a complete component. Preserve recoverable originals before edits; do not overwrite an accepted release.
+4. Match type hints deliberately on both sides. Prefer Curve, Point3d, number, integer, bool, etc. when the contract requires those types; use object for genuinely mixed/custom data. Never silently fall back to object because a requested hint failed. The starter accepts aliases or explicit CLR types and verifies selection before changing ports. Legacy four-field outputs remain accepted as object; new outputs have five fields including Hint.
+5. Schedule port changes outside the current solve, discard superseded callbacks and preserve compatible parameter identities, wires and persistent values. Revisions/messages alone do not rebuild ports. Wait for configuration and the following solve before evaluating output. Required/invalid old inputs can prevent the loader from executing; resolve that blocking input or use a fresh component.
+6. Verify unfamiliar API signatures against installed XML or official Rhino documentation. Preserve meaningful tree paths and empty branches, distinguish geometry from display samples, and declare units/tolerance where relevant. Keep complete component usage in its source header, not a separate per-component manual.
+7. Run checks relevant to the change. Use current Debug/source identity for fragile or repeatedly failing components. Distinguish offline tests, real Rhino geometry, live GH ports and save/reopen checks. If live access is unavailable, deliver the useful source and concrete manual acceptance steps; do not imply live verification.
 
 ## Delivery
 
-Provide the changed artifact, the required port setup or existing loader path, and a short result describing what was verified and what remains to be exercised. Include units, tolerance, or approximation limits when they affect the result. Do not claim that the canvas was updated, a User Object was installed, or a machine path was validated without corresponding evidence.
+Link the source and provide the **complete ready-to-paste loader in a fenced Python block**, with the actual Rhino-readable path substituted. A downloadable loader alone is insufficient. For later same-path edits, only remind the user to recompute; repeat the loader when requested or when its path changes. Report the result, relevant checks and remaining limits concisely; do not echo the entire source or standard workflow.
 
-After generating a component for loader-based development, provide its source link and the **complete ready-to-paste loader in a fenced Python code block**, with the real source path already substituted and correctly quoted. Use the chat/UI's copyable code-block facility; a path, downloadable file or statement that a loader exists is not sufficient. If code blocks are unavailable, present the full plain-text loader through an available copyable surface. Do not claim a copy button exists without evidence or require a separate browser/app solely for copying. See [loader-and-ports.md](references/loader-and-ports.md) and the bundled loader generator. For later same-path edits, remind the user to recompute; resend the loader when requested or its path changes.
-
-## Official references
-
-- [Grasshopper Python component, ports, marshalling and SDK mode](https://developer.rhino3d.com/guides/scripting/scripting-gh-python/)
-- [RhinoCommon API](https://developer.rhino3d.com/api/rhinocommon/)
-- [RhinoScriptSyntax API](https://developer.rhino3d.com/api/RhinoScriptSyntax/)
-- [C# component reference for requested comparisons or migrations](https://developer.rhino3d.com/guides/scripting/scripting-gh-csharp/)
+Package only when requested or already authorized. If useful after successful testing, ask once whether `.ghuser` delivery is wanted and where. Embed standalone source in a fresh packaging component; do not change connected development instances or assume `.ghuser` is a compiled `.gha`. Packaging details stay in the conditional reference.

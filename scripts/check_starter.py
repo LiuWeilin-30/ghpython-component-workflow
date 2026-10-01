@@ -18,6 +18,18 @@ def runtime():
 class Ports(list):
     Count=property(len)
 
+class HintSelector:
+    """Model the reported ambiguous overload; only explicit Type dispatch succeeds."""
+    def __init__(self, select):
+        self.select = select
+        self.Overloads = self
+    def __call__(self, value):
+        raise TypeError('System.RuntimeType cannot be converted to System.String in Select(System.String)')
+    def __getitem__(self, signature):
+        if signature is not type:
+            raise TypeError('Expected the System.Type overload')
+        return self.select
+
 class Param:
     def __init__(self,name):
         self.VariableName=self.Name=self.NickName=name
@@ -28,7 +40,7 @@ class Param:
         self.Recipients=Ports()
         self.PersistentData=NS(DataCount=0)
         self.selected=None
-        self.TypeHints=NS(Select=self.select)
+        self.TypeHints=NS(Select=HintSelector(self.select))
     SourceCount=property(lambda self:len(self.Sources))
     def select(self,value):
         self.selected=value
@@ -67,7 +79,7 @@ class PortArchitectureTests(unittest.TestCase):
         self.mocks=patch.dict(sys.modules,{
             'Grasshopper':NS(Kernel=NS(GH_ParamAccess=NS(item='item',list='list',tree='tree'),
                                       GH_RuntimeMessageLevel=NS(Error='error'))),
-            'System':NS(Object=object,Double=float,Boolean=bool),
+            'System':NS(Object=object,Double=float,Boolean=bool,String=str,Int32=int,Type=type),
             'clr':NS(GetClrType=lambda t:t),
             'RhinoCodePluginGH':NS(),
             'RhinoCodePluginGH.Parameters':NS(ScriptVariableParam=Param)})
@@ -153,7 +165,69 @@ class PortArchitectureTests(unittest.TestCase):
         component.doc=None
         component.queue[0](original)
         self.assertEqual(component.operations,[])
-        self.assertNotIn('pending',self.ns['_PATH_PORT_STATES'].get(str(id(component)),{}))
+        self.assertNotIn('pending',self.ns['_GH_PORT_STATES'].get(str(id(component)),{}))
+
+
+    def test_superseded_reorder_keeps_semantic_wires(self):
+        alpha=('Alpha','Alpha','a','item','number',True)
+        beta=('Beta','Beta','b','item','number',True)
+        self.ns.update(INPUT_SPECS=[alpha,beta], OUTPUT_SPECS=[])
+        a,b=Param('Alpha'),Param('Beta')
+        a.Sources=['alpha-wire']; b.Sources=['beta-wire']
+        component=Component([a,b],[])
+        self.ns['_ensure_ports'](component)
+        self.ns['INPUT_SPECS']=[beta,alpha]
+        self.ns['_ensure_ports'](component)
+        jobs,component.queue=component.queue,[]
+        jobs[0](component.doc)
+        self.assertEqual(component.operations,[])
+        self.assertIn('pending',self.ns['_GH_PORT_STATES'][str(id(component))])
+        jobs[1](component.doc)
+        self.assertEqual([(p.Name,p.Sources) for p in component.Params.Input],
+                         [('Beta',['beta-wire']),('Alpha',['alpha-wire'])])
+        self.assertFalse(component.messages)
+        self.assertTrue(self.ns['_ensure_ports'](component))
+
+    def test_changed_specs_without_new_job_cancel_old_callback(self):
+        component=Component([Param('x')],[Param('a')])
+        self.ns['_ensure_ports'](component)
+        self.ns['INPUT_SPECS']=[('New','New','','item','number',True)]
+        component.flush()
+        self.assertEqual(component.operations,[])
+        self.ns['_ensure_ports'](component); component.flush()
+        self.assertEqual(component.Params.Input[0].Name,'New')
+
+    def test_output_hint_change_reuses_connected_port(self):
+        out=Param('Path'); out.Recipients.append(object())
+        component=Component([Param('Domain')],[out])
+        self.ns['_ensure_ports'](component); component.flush()
+        self.ns['OUTPUT_SPECS']=[('Path','Path','numeric','list','number')]
+        self.ns['_ensure_ports'](component); component.flush()
+        self.assertIs(component.Params.Output[0],out)
+        self.assertIs(out.selected,float)
+        self.assertEqual(len(out.Recipients),1)
+
+    def test_unsupported_output_hint_fails_before_mutation(self):
+        self.ns['OUTPUT_SPECS']=[('Path','Path','','item','unknown')]
+        component=Component([Param('x')],[Param('a')])
+        with self.assertRaises(ValueError): self.ns['_ensure_ports'](component)
+        self.assertEqual(component.operations,[])
+        self.assertEqual(component.queue,[])
+
+    def test_explicit_type_and_legacy_output(self):
+        self.ns['INPUT_SPECS']=[('Domain','Domain','','item',float,True)]
+        component=Component([Param('Domain')],[Param('Path')])
+        self.ns['_ensure_ports'](component); component.flush()
+        self.assertIs(component.Params.Input[0].selected,float)
+        self.assertIs(component.Params.Output[0].selected,object)
+
+    def test_hint_rejected_by_runtime_stops_before_mutation(self):
+        self.ns['OUTPUT_SPECS']=[('Path','Path','','item','number')]
+        component=Component([Param('x')],[Param('a')])
+        with patch.object(Param,'select',lambda self,value:None):
+            with self.assertRaises(ValueError):self.ns['_ensure_ports'](component)
+        self.assertEqual(component.operations,[])
+        self.assertEqual(component.queue,[])
 
 class Tree:
     @classmethod
@@ -189,7 +263,7 @@ class LoaderWorkflowTests(unittest.TestCase):
         data.EnsurePath((3, 0))
         namespace = {'ghenv': NS(Component=component), 'Data': data}
         source = SOURCE.read_text(encoding='utf-8')
-        modules = {'Grasshopper': gh, 'System': NS(Object=object, Double=float, Boolean=bool),
+        modules = {'Grasshopper': gh, 'System': NS(Object=object, Double=float, Boolean=bool, String=str, Int32=int, Type=type),
                    'clr': NS(GetClrType=lambda kind: kind), 'RhinoCodePluginGH': NS(),
                    'RhinoCodePluginGH.Parameters': NS(ScriptVariableParam=Param)}
         with patch.dict(sys.modules, modules):
@@ -203,11 +277,11 @@ class LoaderWorkflowTests(unittest.TestCase):
             self.assertEqual(result.Branch(1), [])
             first = json.loads(namespace['Debug'][0])
             previous_operations = list(component.operations)
-            updated = source.replace("TreePassThrough:r1", "TreePassThrough:r2")
+            updated = source.replace("TreePassThrough:r3", "TreePassThrough:r4")
             exec(compile(updated, str(SOURCE), 'exec'), namespace, namespace)
             second = json.loads(namespace['Debug'][0])
             self.assertNotEqual(first['RunToken'], second['RunToken'])
-            self.assertEqual(second['Source'], 'TreePassThrough:r2')
+            self.assertEqual(second['Source'], 'TreePassThrough:r4')
             self.assertEqual(component.queue, [])
             self.assertEqual(component.operations, previous_operations)
             namespace['Data'] = object()

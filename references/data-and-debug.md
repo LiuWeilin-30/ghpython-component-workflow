@@ -14,7 +14,7 @@ Keep authoritative curves, attribute samples and display meshes distinct. Sparse
 
 ## When to add Debug
 
-Add a `Debug` output when repeated modifications have failed to explain the result, or before implementing likely failures: boolean/offset/split degeneracies, tiny geometry near tolerance, ambiguous wrappers, complex tree/attribute transfers, or large inputs with expensive search/preview. Prefer an explicit List/object output with bounded strings or JSON records the bridge can reliably read. Do not wait for more blind algorithm rewrites.
+Add a `Debug` output when repeated modifications have failed to explain the result, or before implementing likely failures: boolean/offset/split degeneracies, tiny geometry near tolerance, ambiguous wrappers, complex tree/attribute transfers, or large inputs with expensive search/preview. Prefer an explicit List/text output with bounded strings or JSON text the bridge can reliably read; use object only when intentionally returning structured objects. Do not wait for more blind algorithm rewrites.
 
 Include:
 

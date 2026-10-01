@@ -8,6 +8,17 @@ from make_loader import make_loader
 
 
 class LoaderTests(unittest.TestCase):
+    def test_explicit_rhino_path_is_not_resolved_on_agent_host(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source=Path(directory)/'component.py'
+            source.write_text('Result = 1\n',encoding='utf-8')
+            remote="Z:/shared/space ' 功能.py"
+            code=make_loader(source,rhino_source=remote)
+            namespace={}
+            exec(code.split('\n',1)[0],namespace,namespace)
+            self.assertEqual(namespace['SOURCE_PATH'],remote)
+            with self.assertRaises(ValueError):make_loader(source,rhino_source='relative.py')
+
     def test_quoted_unicode_path_inputs_outputs_and_fresh_reads(self):
         with tempfile.TemporaryDirectory() as directory:
             source = Path(directory) / "space ' \u529f\u80fd.py"
