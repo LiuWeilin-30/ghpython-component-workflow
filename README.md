@@ -1,5 +1,7 @@
 # GHPython Component Workflow
 
+[English](README.md) | [简体中文](README.zh-CN.md)
+
 A reusable agent skill for developing and maintaining Rhino 8 Grasshopper Python 3 components. It guides an agent through external-source iteration, connection-preserving port changes, DataTree handling, readable diagnostics, and portable User Object delivery.
 
 ## Requirements
